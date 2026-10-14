@@ -6,8 +6,14 @@ Copy the files in `backend/` and `frontend/` over your projects (same paths).
 1. **Render env vars: delete `ALLOWED_EMAIL_DOMAINS`** (or set it empty). If it still holds the UNILAG
    domains, signup will keep rejecting normal emails. Empty = any email accepted.
 2. `alembic upgrade head`  (roommate_profiles table, 11 indexes, matric_number becomes optional)
-3. `python -m scripts.seed_demo`  -> run it against your DEPLOYED database (the Render DATABASE_URL),
-   not just locally. 6 demo students, 8 listings, password `DemoPass123!`.
+3. **Seed demo data with images via the API** (no terminal needed):
+   - On Render add the env var `SEED_SECRET` = any long random string, then redeploy.
+   - Call it once (replace the URL and secret):
+     `curl -X POST https://<your-api>.onrender.com/admin/seed-demo -H "X-Seed-Key: <SEED_SECRET>"`
+     (or open `https://<your-api>.onrender.com/docs`, find POST /admin/seed-demo, add the header in Swagger).
+   - It creates 6 demo students + 8 listings, all with images served from `/static/demo/` on your own backend
+     (no Cloudinary needed). Safe to call again: it only fills in what's missing.
+   - Demo password: `DemoPass123!`. Delete `SEED_SECRET` afterwards to switch the endpoint off.
 4. Paystack dashboard (test mode):
    - Webhook URL: `https://<your-render-app>/payments/webhook`
    - Turn OFF the OTP requirement for transfers (otherwise release returns 409)

@@ -1,12 +1,15 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.database import Base, engine  # noqa: F401 (Base/engine kept for Alembic + potential scripts)
 from app.rate_limit import limiter
-from app.routers import auth, listings, messages, payments, roommates, uploads, users
+from app.routers import admin_seed, auth, listings, messages, payments, roommates, uploads, users
 
 # Schema is managed by Alembic now (see alembic/ + README) — run
 # `alembic upgrade head` before starting the app rather than relying on
@@ -30,6 +33,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(admin_seed.router)
 app.include_router(auth.router)
 app.include_router(listings.router)
 app.include_router(messages.router)
@@ -37,6 +41,10 @@ app.include_router(payments.router)
 app.include_router(roommates.router)
 app.include_router(uploads.router)
 app.include_router(users.router)
+
+
+# Demo images used by POST /admin/seed-demo (and any other bundled static assets)
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
 @app.get("/health", tags=["health"])

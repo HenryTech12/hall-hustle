@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str = ""
     CLOUDINARY_API_SECRET: str = ""
 
+    # Demo seeding: POST /admin/seed-demo is disabled unless SEED_SECRET is set (send it as the X-Seed-Key header).
+    SEED_SECRET: str = ""
+    # Optional: public URL of this API (e.g. https://hallhustle-api.onrender.com). Auto-detected when empty.
+    PUBLIC_BASE_URL: str = ""
+
     # Leave empty to accept any email address. Set a comma-separated list to restrict signups to those domains.
     ALLOWED_EMAIL_DOMAINS: str = ""
 
