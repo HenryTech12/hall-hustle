@@ -24,6 +24,10 @@ export default function ComposePage() {
   const [error, setError] = useState("");
   const [uploadStatus, setUploadStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Remember what already succeeded so "Retry upload" doesn't create a duplicate listing.
+  const [createdId, setCreatedId] = useState(null);
+  const [mediaDone, setMediaDone] = useState(false);
+  const [musicDone, setMusicDone] = useState(false);
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
@@ -49,38 +53,57 @@ export default function ComposePage() {
     }
     setSubmitting(true);
     try {
-      const listing = await listingsApi.create({
-        listing_type: listingType,
-        hall_name: hallName,
-        price_label: priceLabel || undefined,
-        duration: duration || undefined,
-        caption: caption || undefined,
-        is_urgent: isUrgent,
-      });
+      let id = createdId;
+      if (!id) {
+        // "300,000" or "₦300000" -> 300000, so escrow can pre-fill the amount
+        const digits = priceLabel.replace(/[^\d]/g, "");
+        const listing = await listingsApi.create({
+          listing_type: listingType,
+          hall_name: hallName,
+          price_amount: digits ? Number(digits) : undefined,
+          price_label: priceLabel || undefined,
+          duration: duration || undefined,
+          caption: caption || undefined,
+          is_urgent: isUrgent,
+        });
+        id = listing.id;
+        setCreatedId(id);
+      }
 
-      if (mediaFile) {
+      let failed = false;
+
+      if (mediaFile && !mediaDone) {
         setUploadStatus("Uploading photo/video...");
         try {
-          const { photo_url, media_type } = await uploadsApi.uploadListingMedia(listing.id, mediaFile);
-          await listingsApi.update(listing.id, { photo_url, media_type });
+          const { photo_url, media_type } = await uploadsApi.uploadListingMedia(id, mediaFile);
+          await listingsApi.update(id, { photo_url, media_type });
+          setMediaDone(true);
         } catch (err) {
-          // Listing already exists — surface the failure instead of
-          // silently posting without media, so the person knows to retry.
-          setError(extractErrorMessage(err, "Photo/video upload failed, but your listing was posted without it. You can add it later."));
+          failed = true;
+          setError(extractErrorMessage(err, "Photo/video upload failed."));
         }
       }
 
-      if (musicFile) {
+      if (musicFile && !musicDone) {
         setUploadStatus("Uploading music...");
         try {
-          const { music_url } = await uploadsApi.uploadListingMusic(listing.id, musicFile);
-          await listingsApi.update(listing.id, { music_url });
+          const { music_url } = await uploadsApi.uploadListingMusic(id, musicFile);
+          await listingsApi.update(id, { music_url });
+          setMusicDone(true);
         } catch (err) {
-          setError((prev) => prev || extractErrorMessage(err, "Music upload failed, but your listing was posted without it."));
+          failed = true;
+          setError((prev) => prev || extractErrorMessage(err, "Music upload failed."));
         }
       }
 
-      setUploadStatus("");
+      if (failed) {
+        // Stay on this page so the error is actually seen, and offer a retry.
+        setUploadStatus("");
+        return;
+      }
+
+      setUploadStatus(mediaFile || musicFile ? "Posted with your upload ✓" : "Posted ✓");
+      await new Promise((r) => setTimeout(r, 900));
       navigate("/");
     } catch (err) {
       setError(extractErrorMessage(err, "Couldn't create listing."));
@@ -248,7 +271,7 @@ export default function ComposePage() {
           Mark as urgent — appears in the stories bar
         </label>
 
-        {error && <div style={{ color: COLORS.urgent, fontSize: 12.5 }}>{error}</div>}
+        {error && <div style={{ color: COLORS.urgent, fontSize: 13, fontWeight: 700, background: "#FBE9E4", padding: 10, borderRadius: 8 }}>{error}{createdId ? " Your listing was posted without it." : ""}</div>}
         {uploadStatus && <div style={{ color: COLORS.verified, fontSize: 12.5 }}>{uploadStatus}</div>}
 
         <button
@@ -266,8 +289,17 @@ export default function ComposePage() {
             opacity: submitting ? 0.7 : 1,
           }}
         >
-          {submitting ? "Posting..." : "Post listing"}
+          {submitting ? "Posting..." : createdId ? "Retry upload" : "Post listing"}
         </button>
+        {createdId && !submitting && (
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            style={{ background: "none", border: "none", fontWeight: 700, fontSize: 13, color: COLORS.muted, cursor: "pointer" }}
+          >
+            Skip upload and go to feed
+          </button>
+        )}
       </form>
     </div>
   );
